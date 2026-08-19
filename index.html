@@ -170,6 +170,28 @@ button,input,textarea{touch-action:manipulation}
 .quickEmpty{font-size:12px;color:#6d7786}
 @media(max-width:900px){.favBtn{width:100%}.favChip{font-size:12px}}
 
+
+.mobileDashboard{display:none}
+@media(max-width:900px){
+  .mobileDashboard{
+    display:block;margin:14px 14px 18px;padding:16px;border-radius:18px;
+    background:rgba(255,255,255,.96);box-shadow:var(--shadow);border:1px solid rgba(216,221,229,.9)
+  }
+  .mobileDashboard h2{margin:0 0 4px;font-size:21px}
+  .mobileDashboard .dashSub{font-size:12px;color:var(--muted);margin-bottom:13px}
+  .dashGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .dashBtn{
+    min-height:82px;border:1px solid #d8dde5;border-radius:14px;background:#fff;color:#172033;
+    padding:12px 9px;font-weight:850;font-size:13px;cursor:pointer;text-align:center;
+    box-shadow:0 4px 12px rgba(19,36,58,.07)
+  }
+  .dashBtn .dashIcon{display:block;font-size:25px;margin-bottom:5px}
+  .dashBtn.primary{background:#15253b;color:#fff;border-color:#15253b}
+  .dashStats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}
+  .dashStat{padding:9px 5px;border-radius:11px;background:#f5f7fa;text-align:center;font-size:11px}
+  .dashStat b{display:block;font-size:20px;margin-bottom:1px}
+}
+
 </style>
 
 <style>
@@ -223,6 +245,25 @@ button,input,textarea{touch-action:manipulation}
     <button class="topBtn" onclick="document.getElementById('overview').scrollIntoView({behavior:'smooth'})">↓ Zur Übersicht</button>
   </div>
 </header>
+
+
+<div id="mobileDashboard" class="mobileDashboard">
+  <h2>📱 Meine Ortsschulungen</h2>
+  <div class="dashSub">Schnellzugriff für unterwegs</div>
+  <div class="dashGrid">
+    <button type="button" class="dashBtn primary" onclick="dashNew()"><span class="dashIcon">➕</span>Neue Ortsschulung</button>
+    <button type="button" class="dashBtn" onclick="dashSaved()"><span class="dashIcon">📋</span>Meine Schulungen</button>
+    <button type="button" class="dashBtn" onclick="dashFavorites()"><span class="dashIcon">⭐</span>Favoriten</button>
+    <button type="button" class="dashBtn" onclick="dashExpiring()"><span class="dashIcon">⏰</span>Bald ablaufend</button>
+    <button type="button" class="dashBtn" onclick="dashMap()"><span class="dashIcon">🗺️</span>Karte / Navigation</button>
+    <button type="button" class="dashBtn" onclick="dashBackup()"><span class="dashIcon">💾</span>Backup erstellen</button>
+  </div>
+  <div class="dashStats">
+    <div class="dashStat"><b id="dashValid">0</b>Gültig</div>
+    <div class="dashStat"><b id="dashSoon">0</b>Bald fällig</div>
+    <div class="dashStat"><b id="dashExpired">0</b>Abgelaufen</div>
+  </div>
+</div>
 
 <main>
   <div class="layout">
@@ -860,6 +901,66 @@ function renderQuickStations(){
     recentBox.innerHTML=rec.length?rec.map(n=>makeBtn('🕘',n)).join(''):'<span class="quickEmpty">Noch keine zuletzt verwendeten Bahnhöfe.</span>';
   }
 }
+
+
+function dashScrollTo(el){
+  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function dashNew(){
+  dashScrollTo(document.querySelector('.formPanel') || document.getElementById('station'));
+  setTimeout(()=>{if(document.getElementById('station')) document.getElementById('station').focus()},350);
+}
+function dashSaved(){
+  dashScrollTo(document.getElementById('savedList') || document.querySelector('[id*="saved"]') || document.querySelector('.savedPanel'));
+}
+function dashFavorites(){
+  dashScrollTo(document.getElementById('favoriteStations') || document.getElementById('favoriteBtn'));
+}
+function dashExpiring(){
+  dashScrollTo(document.querySelector('.statusBox') || document.getElementById('savedList'));
+}
+function dashMap(){
+  const s=document.getElementById('station');
+  if(s && s.value.trim()){ openStationMap(); }
+  else { dashNew(); alert('Bitte zuerst einen Bahnhof auswählen.'); }
+}
+function dashBackup(){
+  try{
+    const payload={exportedAt:new Date().toISOString(),localStorage:{}};
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i); payload.localStorage[k]=localStorage.getItem(k);
+    }
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='Ortsschulung_Backup_'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }catch(e){alert('Backup konnte nicht erstellt werden.');}
+}
+function updateDashboardStats(){
+  let valid=0,soon=0,expired=0;
+  const today=new Date(); today.setHours(0,0,0,0);
+  try{
+    // Read the app's stored arrays without changing them.
+    for(let i=0;i<localStorage.length;i++){
+      const raw=localStorage.getItem(localStorage.key(i));
+      if(!raw || raw[0]!=='[') continue;
+      let arr; try{arr=JSON.parse(raw)}catch(e){continue}
+      if(!Array.isArray(arr) || !arr.length || typeof arr[0]!=='object') continue;
+      arr.forEach(x=>{
+        const v=x.validUntil||x.validTo||x.gueltigBis||x.valid;
+        if(!v)return;
+        const d=new Date(v); if(isNaN(d))return;
+        const days=Math.ceil((d-today)/86400000);
+        if(days<0)expired++; else if(days<=30)soon++; else valid++;
+      });
+    }
+  }catch(e){}
+  const a=document.getElementById('dashValid'),b=document.getElementById('dashSoon'),c=document.getElementById('dashExpired');
+  if(a)a.textContent=valid;if(b)b.textContent=soon;if(c)c.textContent=expired;
+}
+window.addEventListener('load',()=>setTimeout(updateDashboardStats,150));
 
 </script>
 </body>
