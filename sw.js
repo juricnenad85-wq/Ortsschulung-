@@ -1,4 +1,4 @@
-const CACHE='ortsschulung-v4-dashboard-fix';
+const CACHE='ortsschulung-v5-status-filter';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{
   self.skipWaiting();
