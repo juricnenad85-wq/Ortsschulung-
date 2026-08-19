@@ -684,6 +684,7 @@ function render(){
   $('expiredCount').textContent=expired;
   $('soonCount').textContent=soon;
   $('validCount').textContent=valid;
+  updateDashboardStats();
 
   const q=$('search').value.trim().toLowerCase();
   const filtered=items
@@ -911,17 +912,17 @@ function dashNew(){
   setTimeout(()=>{if(document.getElementById('station')) document.getElementById('station').focus()},350);
 }
 function dashSaved(){
-  dashScrollTo(document.getElementById('savedList') || document.querySelector('[id*="saved"]') || document.querySelector('.savedPanel'));
+  dashScrollTo(document.getElementById('overview'));
 }
 function dashFavorites(){
   dashScrollTo(document.getElementById('favoriteStations') || document.getElementById('favoriteBtn'));
 }
 function dashExpiring(){
-  dashScrollTo(document.querySelector('.statusBox') || document.getElementById('savedList'));
+  dashScrollTo(document.getElementById('overview'));
 }
 function dashMap(){
   const s=document.getElementById('station');
-  if(s && s.value.trim()){ openStationMap(); }
+  if(s && s.value.trim()){ openSelectedOnMap(); }
   else { dashNew(); alert('Bitte zuerst einen Bahnhof auswählen.'); }
 }
 function dashBackup(){
@@ -940,25 +941,16 @@ function dashBackup(){
 }
 function updateDashboardStats(){
   let valid=0,soon=0,expired=0;
-  const today=new Date(); today.setHours(0,0,0,0);
-  try{
-    // Read the app's stored arrays without changing them.
-    for(let i=0;i<localStorage.length;i++){
-      const raw=localStorage.getItem(localStorage.key(i));
-      if(!raw || raw[0]!=='[') continue;
-      let arr; try{arr=JSON.parse(raw)}catch(e){continue}
-      if(!Array.isArray(arr) || !arr.length || typeof arr[0]!=='object') continue;
-      arr.forEach(x=>{
-        const v=x.validUntil||x.validTo||x.gueltigBis||x.valid;
-        if(!v)return;
-        const d=new Date(v); if(isNaN(d))return;
-        const days=Math.ceil((d-today)/86400000);
-        if(days<0)expired++; else if(days<=30)soon++; else valid++;
-      });
-    }
-  }catch(e){}
-  const a=document.getElementById('dashValid'),b=document.getElementById('dashSoon'),c=document.getElementById('dashExpired');
-  if(a)a.textContent=valid;if(b)b.textContent=soon;if(c)c.textContent=expired;
+  items.forEach(it=>{
+    const s=statusFor(it);
+    if(s.key==='expired') expired++;
+    else if(s.key==='soon') soon++;
+    else valid++;
+  });
+  const a=$('dashValid'),b=$('dashSoon'),c=$('dashExpired');
+  if(a)a.textContent=valid;
+  if(b)b.textContent=soon;
+  if(c)c.textContent=expired;
 }
 window.addEventListener('load',()=>setTimeout(updateDashboardStats,150));
 
