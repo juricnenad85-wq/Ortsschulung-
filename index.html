@@ -188,18 +188,14 @@ button,input,textarea{touch-action:manipulation}
   .dashBtn .dashIcon{display:block;font-size:25px;margin-bottom:5px}
   .dashBtn.primary{background:#15253b;color:#fff;border-color:#15253b}
   .dashStats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}
-  .dashStat{padding:9px 5px;border-radius:11px;background:#f5f7fa;text-align:center;font-size:11px;border:0;cursor:pointer;color:#172033}
+  .dashStat{padding:9px 5px;border-radius:11px;background:#f5f7fa;text-align:center;font-size:11px}
   .dashStat b{display:block;font-size:20px;margin-bottom:1px}
 }
 
 
-.filterBar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
-.filterBtn{
-  border:1px solid #d8dde5;background:#fff;color:#172033;
-  border-radius:999px;padding:8px 11px;font-weight:800;font-size:12px;cursor:pointer
-}
-.filterBtn.active{background:#15253b;color:#fff;border-color:#15253b}
-
+.osFilterBar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+.osFilterBtn{border:1px solid #d8dde5;background:#fff;color:#172033;border-radius:999px;padding:8px 11px;font-weight:800;font-size:12px;cursor:pointer}
+.osFilterBtn.active{background:#15253b;color:#fff;border-color:#15253b}
 </style>
 
 <style>
@@ -267,9 +263,9 @@ button,input,textarea{touch-action:manipulation}
     <button type="button" class="dashBtn" onclick="dashBackup()"><span class="dashIcon">💾</span>Backup erstellen</button>
   </div>
   <div class="dashStats">
-    <button type="button" class="dashStat" onclick="dashFilter('valid')"><b id="dashValid">0</b>Gültig</button>
-    <button type="button" class="dashStat" onclick="dashFilter('soon')"><b id="dashSoon">0</b>Bald fällig</button>
-    <button type="button" class="dashStat" onclick="dashFilter('expired')"><b id="dashExpired">0</b>Abgelaufen</button>
+    <div class="dashStat" role="button" tabindex="0" onclick="osSetOverviewFilter('valid')"><b id="dashValid">0</b>Gültig</div>
+    <div class="dashStat" role="button" tabindex="0" onclick="osSetOverviewFilter('soon')"><b id="dashSoon">0</b>Bald fällig</div>
+    <div class="dashStat" role="button" tabindex="0" onclick="osSetOverviewFilter('expired')"><b id="dashExpired">0</b>Abgelaufen</div>
   </div>
 </div>
 
@@ -458,12 +454,12 @@ button,input,textarea{touch-action:manipulation}
   </div>
 
   <section class="panel overview" id="overview">
-    <div id="overviewFilters" class="filterBar">
-      <button type="button" id="filterAll" class="filterBtn active" onclick="setOverviewFilter('all')">Alle anzeigen</button>
-      <button type="button" id="filterSoon" class="filterBtn" onclick="setOverviewFilter('soon')">⏰ Bald fällig</button>
-      <button type="button" id="filterExpired" class="filterBtn" onclick="setOverviewFilter('expired')">🔴 Abgelaufen</button>
-      <button type="button" id="filterValid" class="filterBtn" onclick="setOverviewFilter('valid')">🟢 Gültig</button>
-    </div>
+  <div class="osFilterBar" id="osFilterBar">
+    <button type="button" class="osFilterBtn active" data-filter="all">Alle anzeigen</button>
+    <button type="button" class="osFilterBtn" data-filter="soon">⏰ Bald fällig</button>
+    <button type="button" class="osFilterBtn" data-filter="expired">🔴 Abgelaufen</button>
+    <button type="button" class="osFilterBtn" data-filter="valid">🟢 Gültig</button>
+  </div>
     <div class="overviewHead">
       <h2 class="panelTitle" style="margin:0">Gespeicherte Ortsschulungen</h2>
       <input class="search" id="search" placeholder="🔎 Bahnhof suchen..." oninput="render()">
@@ -704,14 +700,9 @@ function render(){
   const filtered=items
     .slice()
     .sort((a,b)=>expiryFor(a.date)-expiryFor(b.date))
-    .filter(it=>it.station.toLowerCase().includes(q))
-    .filter(it=>overviewFilter==='all' || statusFor(it).key===overviewFilter);
+    .filter(it=>it.station.toLowerCase().includes(q));
 
   $('empty').style.display=filtered.length?'none':'block';
-  if(!filtered.length){
-    const labels={all:'Keine Ortsschulungen gefunden.',soon:'Keine bald fälligen Ortsschulungen.',expired:'Keine abgelaufenen Ortsschulungen.',valid:'Keine gültigen Ortsschulungen.'};
-    $('empty').textContent=labels[overviewFilter]||labels.all;
-  }
   $('rows').innerHTML=filtered.map(it=>{
     const s=statusFor(it);
     return `<tr>
@@ -937,7 +928,7 @@ function dashFavorites(){
   dashScrollTo(document.getElementById('favoriteStations') || document.getElementById('favoriteBtn'));
 }
 function dashExpiring(){
-  dashFilter('soon');
+  osSetOverviewFilter('soon');
 }
 function dashMap(){
   const s=document.getElementById('station');
@@ -974,20 +965,44 @@ function updateDashboardStats(){
 window.addEventListener('load',()=>setTimeout(updateDashboardStats,150));
 
 
-let overviewFilter='all';
+let osOverviewFilter='all';
 
-function setOverviewFilter(filter){
-  overviewFilter=filter;
-  ['all','soon','expired','valid'].forEach(k=>{
-    const el=document.getElementById('filter'+k.charAt(0).toUpperCase()+k.slice(1));
-    if(el)el.classList.toggle('active',k===filter);
+function osApplyOverviewFilter(){
+  const table=document.querySelector('#overview table');
+  if(!table) return;
+  const rows=[...table.querySelectorAll('tbody tr')];
+  rows.forEach(row=>{
+    const txt=row.textContent||'';
+    let key='valid';
+    if(/Abgelaufen/i.test(txt)) key='expired';
+    else if(/Bald/i.test(txt)) key='soon';
+    else if(/Gültig/i.test(txt)) key='valid';
+    row.style.display=(osOverviewFilter==='all'||key===osOverviewFilter)?'':'none';
   });
-  render();
 }
-function dashFilter(filter){
-  setOverviewFilter(filter);
-  dashScrollTo(document.getElementById('overview'));
+
+function osSetOverviewFilter(filter){
+  osOverviewFilter=filter;
+  document.querySelectorAll('.osFilterBtn').forEach(btn=>{
+    btn.classList.toggle('active',btn.dataset.filter===filter);
+  });
+  osApplyOverviewFilter();
+  const ov=document.getElementById('overview');
+  if(ov) ov.scrollIntoView({behavior:'smooth',block:'start'});
 }
+
+document.addEventListener('click',e=>{
+  const btn=e.target.closest('.osFilterBtn');
+  if(btn) osSetOverviewFilter(btn.dataset.filter);
+});
+
+window.addEventListener('load',()=>{
+  setTimeout(osApplyOverviewFilter,300);
+  const ov=document.getElementById('overview');
+  if(ov){
+    new MutationObserver(()=>osApplyOverviewFilter()).observe(ov,{childList:true,subtree:true});
+  }
+});
 
 </script>
 </body>
