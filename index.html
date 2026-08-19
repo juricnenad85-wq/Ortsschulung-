@@ -160,6 +160,16 @@ button,input,textarea{touch-action:manipulation}
   text-align:center;color:#6d7786;padding:14px
 }
 .currentLocation{font-size:12px;color:#5e6978;margin-top:7px}
+
+.favBtn{border:1px solid #d8dde5;background:#fff;color:#172033;border-radius:10px;padding:10px 12px;font-weight:800;cursor:pointer}
+.favBtn.active{background:#fff7d6;border-color:#e8c94a}
+.quickPanel{margin-top:12px;padding:12px;border:1px solid #d8dde5;border-radius:12px;background:rgba(255,255,255,.88)}
+.quickPanel h3{margin:0 0 8px;font-size:14px}
+.favBar{display:flex;gap:7px;flex-wrap:wrap}
+.favChip{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border-radius:999px;border:1px solid #d8dde5;background:#fff;color:#172033;font-size:12px;font-weight:700;cursor:pointer}
+.quickEmpty{font-size:12px;color:#6d7786}
+@media(max-width:900px){.favBtn{width:100%}.favChip{font-size:12px}}
+
 </style>
 
 <style>
@@ -305,6 +315,14 @@ button,input,textarea{touch-action:manipulation}
 <option value="Zell am See"></option></datalist>
             <div id="stationSuggestions" class="suggestBox"></div>
             <div id="gpsAutoState" class="gpsAuto">📍 GPS wird nach Auswahl automatisch geladen.</div>
+          <div class="quickPanel">
+            <button type="button" id="favoriteBtn" class="favBtn" onclick="toggleFavoriteCurrent()">☆ Bahnhof als Favorit</button>
+            <h3 style="margin-top:12px">⭐ Favoriten</h3>
+            <div id="favoriteStations" class="favBar"></div>
+            <h3 style="margin-top:12px">🕘 Zuletzt verwendet</h3>
+            <div id="recentStations" class="favBar"></div>
+          </div>
+
           </div>
 
           <div class="field">
@@ -546,6 +564,7 @@ async function saveTraining(){
     alert('Bitte zumindest Bahnhof/Betriebsstelle und Datum eingeben.');
     return;
   }
+  addRecentStation(station);
   if(!$('lat').value || !$('lon').value){
     await findStationGPS(station);
   }
@@ -701,7 +720,9 @@ function showStationSuggestions(){
         const name=el.dataset.name;
         input.value=name;
         box.style.display='none';
+        addRecentStation(name);
         await findStationGPS(name);
+        renderQuickStations();
       });
     });
   }
@@ -713,7 +734,7 @@ function showStationSuggestions(){
   },650);
 }
 
-$('station').addEventListener('input',showStationSuggestions);
+$('station').addEventListener('input',()=>{showStationSuggestions();renderQuickStations();});
 $('station').addEventListener('focus',showStationSuggestions);
 $('station').addEventListener('blur',()=>setTimeout(()=>$('stationSuggestions').style.display='none',180));
 
@@ -774,6 +795,71 @@ findStationGPS=async function(stationName){
   updateMapPreview();
   return ok;
 };
+
+
+const FAV_KEY='ortsschulungen_favorites_v1';
+const RECENT_KEY='ortsschulungen_recent_v1';
+
+function loadList(key){
+  try{return JSON.parse(localStorage.getItem(key)||'[]')}catch(e){return []}
+}
+function saveList(key,arr,max){
+  localStorage.setItem(key,JSON.stringify(arr.slice(0,max)));
+}
+function getFavorites(){return loadList(FAV_KEY)}
+function getRecents(){return loadList(RECENT_KEY)}
+
+function addRecentStation(name){
+  name=(name||'').trim();
+  if(!name)return;
+  let arr=getRecents().filter(x=>x.toLowerCase()!==name.toLowerCase());
+  arr.unshift(name);
+  saveList(RECENT_KEY,arr,8);
+  renderQuickStations();
+}
+function isFavorite(name){
+  name=(name||'').trim().toLowerCase();
+  return !!name && getFavorites().some(x=>x.toLowerCase()===name);
+}
+function toggleFavoriteCurrent(){
+  const name=$('station').value.trim();
+  if(!name){alert('Bitte zuerst einen Bahnhof auswählen.');return;}
+  let arr=getFavorites();
+  if(isFavorite(name)){
+    arr=arr.filter(x=>x.toLowerCase()!==name.toLowerCase());
+  }else{
+    arr.unshift(name);
+  }
+  saveList(FAV_KEY,arr,30);
+  renderQuickStations();
+}
+async function selectQuickStation(name){
+  $('station').value=name;
+  if($('stationSuggestions')) $('stationSuggestions').style.display='none';
+  addRecentStation(name);
+  await findStationGPS(name);
+  renderQuickStations();
+}
+function renderQuickStations(){
+  const current=$('station') ? $('station').value.trim() : '';
+  const favBtn=$('favoriteBtn');
+  if(favBtn){
+    const active=isFavorite(current);
+    favBtn.classList.toggle('active',active);
+    favBtn.textContent=active?'★ Favorit entfernen':'☆ Bahnhof als Favorit';
+  }
+  const favBox=$('favoriteStations');
+  const recentBox=$('recentStations');
+  const makeBtn=(prefix,n)=>'<button type="button" class="favChip" onclick="selectQuickStation('+JSON.stringify(n).replace(/"/g,'&quot;')+')">'+prefix+' '+escapeHtml(n)+'</button>';
+  if(favBox){
+    const favs=getFavorites();
+    favBox.innerHTML=favs.length?favs.map(n=>makeBtn('⭐',n)).join(''):'<span class="quickEmpty">Noch keine Favoriten gespeichert.</span>';
+  }
+  if(recentBox){
+    const rec=getRecents();
+    recentBox.innerHTML=rec.length?rec.map(n=>makeBtn('🕘',n)).join(''):'<span class="quickEmpty">Noch keine zuletzt verwendeten Bahnhöfe.</span>';
+  }
+}
 
 </script>
 </body>
