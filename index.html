@@ -196,6 +196,28 @@ button,input,textarea{touch-action:manipulation}
 .osFilterBar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
 .osFilterBtn{border:1px solid #d8dde5;background:#fff;color:#172033;border-radius:999px;padding:8px 11px;font-weight:800;font-size:12px;cursor:pointer}
 .osFilterBtn.active{background:#15253b;color:#fff;border-color:#15253b}
+
+.mobileTrainingCards{display:none}
+@media(max-width:900px){
+  .tableWrap table{display:none}
+  .tableWrap{overflow:visible}
+  .mobileTrainingCards{display:grid;gap:12px;margin-top:12px}
+  .trainingCard{
+    background:#fff;border:1px solid #d8dde5;border-radius:15px;padding:15px;
+    box-shadow:0 5px 16px rgba(19,36,58,.08)
+  }
+  .trainingCardTop{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:12px}
+  .trainingStation{font-size:17px;font-weight:900;line-height:1.25}
+  .trainingMeta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:10px 0}
+  .trainingMetaBox{background:#f5f7fa;border-radius:10px;padding:9px}
+  .trainingMetaLabel{font-size:10px;color:#6d7786;text-transform:uppercase;letter-spacing:.04em;font-weight:800}
+  .trainingMetaValue{font-size:13px;font-weight:850;margin-top:3px}
+  .trainingGps{font-size:12px;color:#6d7786;margin:9px 0;word-break:break-word}
+  .trainingActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .trainingActions .miniBtn{width:100%;min-height:44px}
+  .trainingActions .mapBtn{grid-column:1/-1}
+}
+
 </style>
 
 <style>
@@ -478,6 +500,7 @@ button,input,textarea{touch-action:manipulation}
         </thead>
         <tbody id="rows"></tbody>
       </table>
+      <div id="mobileTrainingCards" class="mobileTrainingCards"></div>
       <div id="empty" class="empty">Noch keine Ortsschulungen gespeichert.</div>
     </div>
   </section>
@@ -720,6 +743,7 @@ function render(){
       </td>
     </tr>`;
   }).join('');
+  renderMobileTrainingCards(filtered);
 }
 
 $('topics').addEventListener('input',()=>$('counter').textContent=$('topics').value.length);
@@ -969,7 +993,7 @@ let osOverviewFilter='all';
 
 function osApplyOverviewFilter(){
   const table=document.querySelector('#overview table');
-  if(!table) return;
+  if(!table){ osApplyMobileCardFilter(); return; }
   const rows=[...table.querySelectorAll('tbody tr')];
   rows.forEach(row=>{
     const txt=row.textContent||'';
@@ -979,6 +1003,7 @@ function osApplyOverviewFilter(){
     else if(/Gültig/i.test(txt)) key='valid';
     row.style.display=(osOverviewFilter==='all'||key===osOverviewFilter)?'':'none';
   });
+  osApplyMobileCardFilter();
 }
 
 function osSetOverviewFilter(filter){
@@ -1003,6 +1028,47 @@ window.addEventListener('load',()=>{
     new MutationObserver(()=>osApplyOverviewFilter()).observe(ov,{childList:true,subtree:true});
   }
 });
+
+
+function renderMobileTrainingCards(filtered){
+  const box=$('mobileTrainingCards');
+  if(!box)return;
+  box.innerHTML=filtered.map(it=>{
+    const s=statusFor(it);
+    const gps=(it.lat&&it.lon)
+      ? `<button class="miniBtn mapBtn" style="padding:6px 8px;min-height:auto" onclick="copyCoords('${it.lat}','${it.lon}')">📍 ${escapeHtml(it.lat)}, ${escapeHtml(it.lon)}</button>`
+      : '<span>GPS nicht gespeichert</span>';
+    return `<article class="trainingCard" data-status="${s.key}">
+      <div class="trainingCardTop">
+        <div class="trainingStation">🚉 ${escapeHtml(it.station)}</div>
+        <span class="badge ${s.cls}"><i></i>${s.label}</span>
+      </div>
+      <div class="trainingMeta">
+        <div class="trainingMetaBox">
+          <div class="trainingMetaLabel">Schulungsdatum</div>
+          <div class="trainingMetaValue">${fmtDate(new Date(it.date+'T12:00:00'))}</div>
+        </div>
+        <div class="trainingMetaBox">
+          <div class="trainingMetaLabel">Gültig bis</div>
+          <div class="trainingMetaValue">${fmtDate(s.expiry)}</div>
+        </div>
+      </div>
+      <div class="trainingGps">${gps}</div>
+      <div class="trainingActions">
+        <button class="miniBtn mapBtn" onclick="openRailwayMapById(${it.id})">🗺 Karte / Navigation</button>
+        <button class="miniBtn renew" onclick="renew(${it.id})">✓ Erneuert</button>
+        <button class="miniBtn del" onclick="del(${it.id})">🗑 Löschen</button>
+      </div>
+    </article>`;
+  }).join('');
+  osApplyMobileCardFilter();
+}
+function osApplyMobileCardFilter(){
+  const cards=[...document.querySelectorAll('#mobileTrainingCards .trainingCard')];
+  cards.forEach(card=>{
+    card.style.display=(osOverviewFilter==='all'||card.dataset.status===osOverviewFilter)?'':'none';
+  });
+}
 
 </script>
 </body>
