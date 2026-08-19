@@ -146,6 +146,20 @@ button,input,textarea{touch-action:manipulation}
   .overviewHead{align-items:stretch;flex-direction:column}
   .search{max-width:none}
 }
+
+.mapTools{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.mapTools button,.mapTools a{
+  border:0;border-radius:10px;padding:10px 12px;font-weight:700;
+  text-decoration:none;cursor:pointer;background:#15253b;color:white;font-size:13px
+}
+.mapTools .navBtn{background:#218c46}
+.mapTools .locBtn{background:#d71920}
+.mapBox{
+  margin-top:10px;border-radius:14px;overflow:hidden;border:1px solid #d8dde5;
+  background:#f4f6f8;min-height:110px;display:flex;align-items:center;justify-content:center;
+  text-align:center;color:#6d7786;padding:14px
+}
+.currentLocation{font-size:12px;color:#5e6978;margin-top:7px}
 </style>
 
 <style>
@@ -313,6 +327,14 @@ button,input,textarea{touch-action:manipulation}
             <label>Längengrad (GPS)</label>
             <input id="lon" class="coords" placeholder="automatisch" readonly>
           </div>
+        <div class="mapTools">
+          <button type="button" class="locBtn" onclick="useCurrentLocation()">📍 Mein Standort</button>
+          <button type="button" onclick="openSelectedOnMap()">🗺 Bahnhof auf Karte</button>
+          <button type="button" class="navBtn" onclick="navigateToSelected()">🚗 Navigation starten</button>
+        </div>
+        <div id="currentLocation" class="currentLocation">Standortfreigabe nur nach Antippen von „Mein Standort“.</div>
+        <div id="mapPreview" class="mapBox">Bahnhof auswählen – danach kannst du Karte oder Navigation öffnen.</div>
+
         </div>
 
         <div class="field">
@@ -699,6 +721,60 @@ $('station').addEventListener('blur',()=>setTimeout(()=>$('stationSuggestions').
 $('trainingDate').value=localISO();
 $('todayText').textContent=fmtDate(new Date());
 render();
+
+function selectedCoords(){
+  const lat=parseFloat($('lat')?.value);
+  const lon=parseFloat($('lon')?.value);
+  return Number.isFinite(lat)&&Number.isFinite(lon)?{lat,lon}:null;
+}
+function updateMapPreview(){
+  const c=selectedCoords();
+  const box=$('mapPreview');
+  if(!box)return;
+  if(!c){
+    box.textContent='Bahnhof auswählen – GPS wird automatisch gesucht.';
+    return;
+  }
+  const station=$('station').value.trim()||'Ausgewählter Bahnhof';
+  box.innerHTML='<div><b>📍 '+escapeHtml(station)+'</b><br>'+c.lat.toFixed(6)+', '+c.lon.toFixed(6)+'<br><small>Bereit für Karte & Navigation</small></div>';
+}
+function openSelectedOnMap(){
+  const c=selectedCoords();
+  if(!c){ alert('Bitte zuerst einen Bahnhof auswählen, damit GPS geladen wird.'); return; }
+  window.open('https://www.openrailwaymap.org/?style=standard&lat='+encodeURIComponent(c.lat)+'&lon='+encodeURIComponent(c.lon)+'&zoom=16','_blank','noopener');
+}
+function navigateToSelected(){
+  const c=selectedCoords();
+  if(!c){ alert('Bitte zuerst einen Bahnhof auswählen, damit GPS geladen wird.'); return; }
+  const station=$('station').value.trim();
+  const url='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(c.lat+','+c.lon)+'&destination_place_id=&travelmode=driving';
+  window.open(url,'_blank','noopener');
+}
+function useCurrentLocation(){
+  const state=$('currentLocation');
+  if(!navigator.geolocation){
+    state.textContent='⚠ Standort wird von diesem Gerät/Browser nicht unterstützt.';
+    return;
+  }
+  state.textContent='⏳ Standort wird ermittelt …';
+  navigator.geolocation.getCurrentPosition(
+    p=>{
+      const lat=p.coords.latitude, lon=p.coords.longitude;
+      state.textContent='✓ Dein Standort: '+lat.toFixed(6)+', '+lon.toFixed(6)+' (Genauigkeit ca. '+Math.round(p.coords.accuracy)+' m)';
+    },
+    e=>{
+      state.textContent='⚠ Standort konnte nicht geladen werden. Bitte Standortfreigabe im Browser erlauben.';
+    },
+    {enableHighAccuracy:true,timeout:12000,maximumAge:30000}
+  );
+}
+const _oldFindStationGPS=findStationGPS;
+findStationGPS=async function(stationName){
+  const ok=await _oldFindStationGPS(stationName);
+  updateMapPreview();
+  return ok;
+};
+
 </script>
 </body>
 </html>
